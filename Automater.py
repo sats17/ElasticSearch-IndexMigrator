@@ -1,16 +1,16 @@
 import requests
 import json
-import pandas
 
 
 def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
     print("Reading mapping file..")
     with open(mappingPath) as f:
         mapping = json.loads(f.read())
-    createIndexUrl = "http://" + esHost + "/" + newIndexName
+
+    # New Index Creation
+    createIndexUrl = esHost + "/" + newIndexName
     print("Creating new index with url = ", createIndexUrl)
     response = requests.put(url=createIndexUrl, json=mapping).json()
-
     if 'acknowledged' in response and response['acknowledged'] and response['index'] == newIndexName:
         print("New index successfully created with name ", response['index'])
     else:
@@ -19,10 +19,11 @@ def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
         print("Logging ES Response => ", response)
         return 0
 
+    # Index data migration
     print("Started data migration from " + oldIndexName + " to " + newIndexName)
-    reIndexUrl = "http://" + esHost + "/_reindex"
+    reIndexUrl = esHost + "/_reindex"
     reIndexBody = {"source": {"index": oldIndexName}, "dest": {"index": newIndexName}}
-    print("request url is ", reIndexUrl, "request body is ", reIndexBody)
+    print("Data migration request url is ", reIndexUrl, " || request body is ", reIndexBody)
     response = requests.post(url=reIndexUrl, json=reIndexBody).json()
     if not response['failures']:
         print("Data Migration Successfully completed")
@@ -32,18 +33,21 @@ def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
         rollBackOperations(esHost, newIndexName)
         return 0
 
+    # Exchanging aliases
     print("Started exchanging aliases")
-    aliasReplaceUrl = "http://" + esHost + "/_aliases"
+    aliasReplaceUrl = esHost + "/_aliases"
     aliasReplaceBody = {
         "actions": [
             {"remove": {"index": oldIndexName, "alias": aliasName}},
             {"add": {"index": newIndexName, "alias": aliasName}}
         ]
     }
+    print("Alias exchanging request url is ", aliasReplaceUrl, " || request body is ", aliasReplaceBody)
     response = requests.post(url=aliasReplaceUrl, json=aliasReplaceBody).json()
     if 'acknowledged' in response and response['acknowledged']:
+        print("Exchanging aliases successfully completed")
         print("All tasks are successfully completed.")
-        print("Your application is now pointed to ", newIndexName)
+        print("Your application is now pointed to index", newIndexName)
     else:
         print("Logging es response => ", response)
         print("alias exchanging failed")
@@ -53,7 +57,7 @@ def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
 
 def rollBackOperations(esHost, newIndexName):
     print("Rollback started")
-    rollBackUrl = "http://" + esHost + "/" + newIndexName
+    rollBackUrl = esHost + "/" + newIndexName
     response = requests.delete(url=rollBackUrl).json()
     if 'acknowledged' in response and response['acknowledged']:
         print("Rollback successfully completed.")
@@ -63,4 +67,10 @@ def rollBackOperations(esHost, newIndexName):
         return 0
 
 
-IndexRepairJob("localhost:9200", "indexName_v1", "indexName_v2", "mapping.json", "aliasName")
+if __name__ == "__main__":
+    elasticSearchHost = "http://localhost:9200"
+    oldIndex = "restaurants_v3"
+    newIndex = "restaurants_v4"
+    mappingFilePath = "mapping.json"
+    alias = "restaurants"
+    IndexRepairJob(elasticSearchHost, oldIndex, newIndex, mappingFilePath, alias)
