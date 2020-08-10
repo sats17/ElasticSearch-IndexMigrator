@@ -3,6 +3,29 @@ import json
 
 
 def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
+
+    # Pre validation
+    getIndices = esHost + "/_cat/indices"
+    params = {'format': "json"}
+    response = requests.get(url=getIndices, params= params).json()
+    for indices in response:
+        if indices['index'] == aliasName:
+            print("Please check with aliasName, it should not match with any index that present in your elastic search.")
+            print("Aborting script")
+            return 0
+
+    # Adding alias to oldIndex, ElasticSearch will override the alias so no worry if it already present.
+    print("Adding alias to ", oldIndexName)
+    addAliasUrl = esHost + "/" + oldIndexName + "/_alias/" + aliasName
+    response = requests.put(url=addAliasUrl).json()
+    if 'acknowledged' in response and response['acknowledged']:
+        print("Alias added to index ", oldIndexName)
+    else:
+        print("Adding alias name to index fails")
+        print("Please check your inputs that is proper or not")
+        print("Logging es response => ", response)
+        return 0
+
     print("Reading mapping file..")
     with open(mappingPath) as f:
         mapping = json.loads(f.read())
@@ -28,8 +51,8 @@ def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
     if not response['failures']:
         print("Data Migration Successfully completed")
     else:
-        print("Logging es response => ", response)
         print("Data Migration fail")
+        print("Logging es response => ", response)
         rollBackOperations(esHost, newIndexName)
         return 0
 
@@ -49,8 +72,9 @@ def IndexRepairJob(esHost, oldIndexName, newIndexName, mappingPath, aliasName):
         print("All tasks are successfully completed.")
         print("Your application is now pointed to index", newIndexName)
     else:
-        print("Logging es response => ", response)
         print("alias exchanging failed")
+        print("Please check with aliasName, it should not match with any index name.")
+        print("Logging es response => ", response)
         rollBackOperations(esHost, newIndexName)
         return 0
 
@@ -69,8 +93,8 @@ def rollBackOperations(esHost, newIndexName):
 
 if __name__ == "__main__":
     elasticSearchHost = "http://localhost:9200"
-    oldIndex = "restaurants_v3"
-    newIndex = "restaurants_v4"
+    oldIndex = "oldIndexName"
+    newIndex = "newIndexName"
     mappingFilePath = "mapping.json"
-    alias = "restaurants"
+    alias = "aliasName"
     IndexRepairJob(elasticSearchHost, oldIndex, newIndex, mappingFilePath, alias)
