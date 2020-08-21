@@ -16,3 +16,4 @@ In this script we are automating all those steps that elasticsearch provided and
 ###### newIndex = Your new index name.
 ###### mappingFilePath = Your correct mapping json that you will use to create new index.
 ###### alias = Your alias name that you want to relink from old index to new index.
+###### isRemoveOldIndex = Boolean flag, it will decide after migration whether old index should be deleted or not.
